@@ -20,9 +20,7 @@
 
 package cascading.pipe;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import cascading.PlatformTestCase;
 import cascading.flow.Flow;
@@ -31,15 +29,7 @@ import cascading.flow.FlowProcess;
 import cascading.operation.BaseOperation;
 import cascading.operation.Function;
 import cascading.operation.FunctionCall;
-import cascading.operation.Insert;
-import cascading.operation.aggregator.Count;
-import cascading.operation.regex.RegexSplitter;
-import cascading.pipe.CoGroup;
-import cascading.pipe.Each;
-import cascading.pipe.Every;
-import cascading.pipe.GroupBy;
-import cascading.pipe.Pipe;
-import cascading.pipe.joiner.BufferJoin;
+import cascading.operation.Identity;
 import cascading.tap.SinkMode;
 import cascading.tap.Tap;
 import cascading.tuple.Fields;
@@ -78,11 +68,12 @@ public class CoGroupPlatformTest extends PlatformTestCase
   @Test
   public void testCoGroupWithTextDelimited() throws Exception
     {
+    String inputFileNums10 = "/Users/jcoveney/workspace/github/cascading/cascading-platform/src/test/resources/data/nums.10.txt";
     getPlatform().copyFromLocal( inputFileNums10 );
 
     Tap input = getPlatform().getDelimitedFile(
       Fields.ALL, false, "\t", null, null, inputFileNums10, SinkMode.REPLACE );
-    Tap intemediate = getPlatform().getDelimitedFile(
+    Tap intermediate = getPlatform().getDelimitedFile(
       Fields.ALL, false, "\t", null, null, "output/intermediate", SinkMode.REPLACE );
     Tap output = getPlatform().getDelimitedFile(
        Fields.ALL, false, "\t", null, null, "output/final", SinkMode.REPLACE );
@@ -94,13 +85,14 @@ public class CoGroupPlatformTest extends PlatformTestCase
 
     Pipe in1ToInt = new Pipe("in1ToInt",
       new Each(in1, Fields.FIRST, new MultiplyInt("id", 1), Fields.RESULTS));
-    flowDef = flowDef.addTailSink(in1ToInt, intemediate);
+    flowDef = flowDef.addTailSink(in1ToInt, intermediate);
 
     Pipe in2 = new Pipe("in2",
       new Each(in1ToInt, new Fields("id"), new MultiplyInt("id2", 2), Fields.RESULTS));
 
     Pipe cogroup = new CoGroup(in1ToInt, new Fields("id"), in2, new Fields("id2"));
-    flowDef = flowDef.addTailSink(cogroup, output);
+    Pipe cogroupProj = new Each(cogroup, Fields.FIRST, new Identity(), Fields.RESULTS);
+    flowDef = flowDef.addTailSink(cogroupProj, output);
 
     Flow flow = getPlatform().getFlowConnector().connect(flowDef);
     flow.complete();
@@ -108,8 +100,9 @@ public class CoGroupPlatformTest extends PlatformTestCase
     List<Tuple> results = getSinkAsList( flow );
 
     assertTrue( results.contains( new Tuple( "2" ) ) );
-    assertTrue( results.contains( new Tuple( "4" ) ) );
+    assertTrue( results.contains( new Tuple( "2" ) ) );
     assertTrue( results.contains( new Tuple( "6" ) ) );
     assertTrue( results.contains( new Tuple( "8" ) ) );
+    assertTrue( results.contains( new Tuple( "10" ) ) );
     }
   }
